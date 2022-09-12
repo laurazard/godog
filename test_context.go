@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"reflect"
 	"regexp"
+	"testing"
 
 	"github.com/cucumber/godog/formatters"
 	"github.com/cucumber/godog/internal/builder"
@@ -26,12 +27,12 @@ type Step = messages.PickleStep
 // instead of returning an error in step func
 // it is possible to return combined steps:
 //
-//   func multistep(name string) godog.Steps {
-//     return godog.Steps{
-//       fmt.Sprintf(`an user named "%s"`, name),
-//       fmt.Sprintf(`user "%s" is authenticated`, name),
-//     }
-//   }
+//	func multistep(name string) godog.Steps {
+//	  return godog.Steps{
+//	    fmt.Sprintf(`an user named "%s"`, name),
+//	    fmt.Sprintf(`user "%s" is authenticated`, name),
+//	  }
+//	}
 //
 // These steps will be matched and executed in
 // sequential order. The first one which fails
@@ -104,7 +105,8 @@ func (ctx *TestSuiteContext) ScenarioContext() *ScenarioContext {
 // executions are catching panic error since it may
 // be a context specific error.
 type ScenarioContext struct {
-	suite *suite
+	suite    *suite
+	testingT *testing.T
 }
 
 // StepContext allows registering step hooks.
@@ -137,6 +139,15 @@ type AfterScenarioHook func(ctx context.Context, sc *Scenario, err error) (conte
 // StepContext exposes StepContext of a scenario.
 func (ctx *ScenarioContext) StepContext() StepContext {
 	return StepContext{suite: ctx.suite}
+}
+
+// TestingT exposes the subtest *testing.T
+// used for running the scenario
+func (ctx *ScenarioContext) TestingT() *testing.T {
+	if ctx.testingT == nil {
+		panic("can only access scenario TestingT if running using go subtests")
+	}
+	return ctx.testingT
 }
 
 // Before registers a function or method

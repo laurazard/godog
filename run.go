@@ -103,37 +103,76 @@ func (r *runner) concurrent(rate int) (failed bool) {
 				r.fmt.Feature(ft.GherkinDocument, ft.Uri, ft.Content)
 			}
 
-			runPickle := func(fail *bool, pickle *messages.Pickle) {
-				defer func() {
-					<-queue // free a space in queue
-				}()
+			if r.testingT != nil {
+				// Running scenario as a subtest.
+				r.testingT.Run(pickle.Name, func(t *testing.T) {
 
-				if r.stopOnFailure && *fail {
-					return
-				}
+					runPickle := func(fail *bool, pickle *messages.Pickle) {
+						defer func() {
+							<-queue // free a space in queue
+						}()
 
-				// Copy base suite.
-				suite := *testSuiteContext.suite
+						if r.stopOnFailure && *fail {
+							return
+						}
 
-				if r.scenarioInitializer != nil {
-					sc := ScenarioContext{suite: &suite}
-					r.scenarioInitializer(&sc)
-				}
+						// Copy base suite.
+						suite := *testSuiteContext.suite
 
-				err := suite.runPickle(pickle)
-				if suite.shouldFail(err) {
-					copyLock.Lock()
-					*fail = true
-					copyLock.Unlock()
-				}
-			}
+						if r.scenarioInitializer != nil {
+							sc := ScenarioContext{suite: &suite, testingT: t}
+							r.scenarioInitializer(&sc)
+						}
 
-			if rate == 1 {
-				// Running within the same goroutine for concurrency 1
-				// to preserve original stacks and simplify debugging.
-				runPickle(&failed, &pickle)
+						err := suite.runPickle(pickle)
+						if suite.shouldFail(err) {
+							copyLock.Lock()
+							*fail = true
+							copyLock.Unlock()
+						}
+					}
+
+					if rate == 1 {
+						// Running within the same goroutine for concurrency 1
+						// to preserve original stacks and simplify debugging.
+						runPickle(&failed, &pickle)
+					} else {
+						go runPickle(&failed, &pickle)
+					}
+				})
 			} else {
-				go runPickle(&failed, &pickle)
+				runPickle := func(fail *bool, pickle *messages.Pickle) {
+					defer func() {
+						<-queue // free a space in queue
+					}()
+
+					if r.stopOnFailure && *fail {
+						return
+					}
+
+					// Copy base suite.
+					suite := *testSuiteContext.suite
+
+					if r.scenarioInitializer != nil {
+						sc := ScenarioContext{suite: &suite}
+						r.scenarioInitializer(&sc)
+					}
+
+					err := suite.runPickle(pickle)
+					if suite.shouldFail(err) {
+						copyLock.Lock()
+						*fail = true
+						copyLock.Unlock()
+					}
+				}
+
+				if rate == 1 {
+					// Running within the same goroutine for concurrency 1
+					// to preserve original stacks and simplify debugging.
+					runPickle(&failed, &pickle)
+				} else {
+					go runPickle(&failed, &pickle)
+				}
 			}
 		}
 	}

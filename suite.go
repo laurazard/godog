@@ -442,18 +442,7 @@ func (s *suite) runPickle(pickle *messages.Pickle) (err error) {
 
 	s.fmt.Pickle(pickle)
 
-	// scenario
-	if s.testingT != nil {
-		// Running scenario as a subtest.
-		s.testingT.Run(pickle.Name, func(t *testing.T) {
-			ctx, err = s.runSteps(ctx, pickle, pickle.Steps)
-			if err != nil {
-				t.Error(err)
-			}
-		})
-	} else {
-		ctx, err = s.runSteps(ctx, pickle, pickle.Steps)
-	}
+	_, err = s.runSteps(ctx, pickle, pickle.Steps)
 
 	// After scenario handlers are called in context of last evaluated step
 	// so that error from handler can be added to step.
